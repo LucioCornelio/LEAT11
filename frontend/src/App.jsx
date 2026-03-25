@@ -10,7 +10,7 @@ function App() {
   const [mapData, setMapData] = useState(null)
   const [mapError, setMapError] = useState(null)
   
-  const [activeTab, setActiveTab] = useState('mapAnalysis')
+  const [activeTab, setActiveTab] = useState('draftAssistant')
   
   const [globalData, setGlobalData] = useState(null)
   const [globalError, setGlobalError] = useState(null)
