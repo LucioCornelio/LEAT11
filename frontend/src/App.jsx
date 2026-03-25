@@ -80,7 +80,7 @@ function App() {
   }, [selectedMap])
 
   useEffect(() => {
-    fetchfetch('https://leat11-backend.onrender.com/api/global')
+    fetch('https://leat11-backend.onrender.com/api/global')
       .then(res => res.json())
       .then(data => {
         if (!data.error) { setGlobalData(data); setGlobalError(null); } 
