@@ -186,14 +186,14 @@ function App() {
         if (!m) return;
         const mapIndex = draft.maps.indexOf(m);
         
-        // ¡CLAVE!: Solo ignoramos el mapa si el pick asignado es REAL y sigue en tus P1_picks
-        if (draft.plan_p1[mapIndex] && draft.p1_picks.includes(draft.plan_p1[mapIndex])) return;
-
+        // El mapa NO se ignora, pero verificamos si está cubierto para aplicar penalizaciones (picks de banquillo)
+        const isCovered = draft.plan_p1[mapIndex] && draft.p1_picks.includes(draft.plan_p1[mapIndex]);
         let mapScore = 0;
+
         const plannedOpponent = draft.plan_p2[mapIndex];
         const unassignedOpponents = draft.p2_picks.filter(c => !draft.plan_p2.includes(c));
 
-        // CRITERIO 1A: Counter Directo (Dorado) - Bajado de 100 a 40 pts para no sobredimensionar la predicción
+        // CRITERIO 1A: Counter Directo (Rival asignado al mapa)
         if (plannedOpponent) {
           const oppLow = plannedOpponent.toLowerCase();
           const ladderCounters = draft.analysis.counters_ladder?.[m]?.[oppLow] || [];
@@ -201,13 +201,15 @@ function App() {
           const isCounter = ladderCounters.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix)) ||
                             prosCounters.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
           if (isCounter) {
-            score += 40;
-            mapScore += 40;
-            reasons.push({ text: `🎯 VS ${plannedOpponent.substring(0,4).toUpperCase()}`, color: '#ffd700', points: 40, title: `Counter letal contra ${plannedOpponent} (asignado a ${m})` });
+            const pts = isCovered ? 25 : 40;
+            const col = isCovered ? '#66b2ff' : '#ffd700'; // Azul/Plata si está cubierto (backup), Oro si está libre
+            score += pts;
+            mapScore += pts;
+            reasons.push({ text: `🎯 VS ${plannedOpponent.substring(0,4).toUpperCase()}`, color: col, points: pts, title: `Counter letal contra ${plannedOpponent} en ${m} ${isCovered ? '(Opción de backup)' : ''}` });
           }
         }
 
-        // CRITERIO 1B: Counter Potencial (Bronce)
+        // CRITERIO 1B: Counter Potencial (Rival sin asignar)
         unassignedOpponents.forEach(p2_civ => {
           const oppLow = p2_civ.toLowerCase();
           const ladderCounters = draft.analysis.counters_ladder?.[m]?.[oppLow] || [];
@@ -215,9 +217,10 @@ function App() {
           const isCounter = ladderCounters.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix)) ||
                             prosCounters.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
           if (isCounter) {
-            score += 15;
-            mapScore += 15;
-            reasons.push({ text: `⚔️ VS ${p2_civ.substring(0,4).toUpperCase()}`, color: '#cd7f32', points: 15, title: `Buen counter contra ${p2_civ} en ${m} (si decide jugarla aquí)` });
+            const pts = isCovered ? 5 : 15;
+            score += pts;
+            mapScore += pts;
+            reasons.push({ text: `⚔️ VS ${p2_civ.substring(0,4).toUpperCase()}`, color: '#cd7f32', points: pts, title: `Buen counter contra ${p2_civ} en ${m} (si decide jugarla aquí)` });
           }
         });
 
@@ -228,17 +231,23 @@ function App() {
         const inWr = topWr.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
         
         if (inCdps && inWr) {
-          score += 35;
-          mapScore += 35;
-          reasons.push({ text: '🌟 TOP BOTH', color: '#ffd700', points: 35, title: `Top 7 en Win Rate y CDPS en ${m}` });
+          const pts = isCovered ? 25 : 35;
+          const col = isCovered ? '#66b2ff' : '#ffd700';
+          score += pts;
+          mapScore += pts;
+          reasons.push({ text: '🌟 TOP BOTH', color: col, points: pts, title: `Top 7 en Win Rate y CDPS en ${m} ${isCovered ? '(Opción de backup)' : ''}` });
         } else if (inCdps) {
-          score += 15;
-          mapScore += 15;
-          reasons.push({ text: '📈 TOP CDPS', color: '#66b2ff', points: 14, title: `Top 7 en CDPS (Meta Pro) en ${m}` });
+          const pts = isCovered ? 10 : 25;
+          const col = isCovered ? '#cd7f32' : '#66b2ff';
+          score += pts;
+          mapScore += pts;
+          reasons.push({ text: '📈 TOP CDPS', color: col, points: pts, title: `Top 7 en CDPS (Meta Pro) en ${m}` });
         } else if (inWr) {
-          score += 15;
-          mapScore += 15;
-          reasons.push({ text: '🏆 TOP WR', color: '#66b2ff', points: 14, title: `Top 7 en Win Rate (Ladder) en ${m}` });
+          const pts = isCovered ? 10 : 25;
+          const col = isCovered ? '#cd7f32' : '#66b2ff';
+          score += pts;
+          mapScore += pts;
+          reasons.push({ text: '🏆 TOP WR', color: col, points: pts, title: `Top 7 en Win Rate (Ladder) en ${m}` });
         }
 
         if (mapScore > bestMapScore) {
@@ -247,7 +256,7 @@ function App() {
         }
       });
 
-      // CRITERIO 3: Flex Pick (Bronce)
+      // CRITERIO 3: Flex Pick (Bronce, 15 pts)
       let flexMaps = [];
       draft.maps.forEach(m => {
         if(!m) return;
@@ -258,15 +267,26 @@ function App() {
           flexMaps.push(m);
         }
       });
+      
       if (flexMaps.length >= 2) {
-        score += 20;
-        reasons.push({ text: '🔄 FLEX', color: '#cd7f32', points: 20, title: `Pick flexible: Top 12 en ${flexMaps.join(', ')}` });
-        if (!bestMap) bestMap = 'Global';
+        score += 15;
+        reasons.push({ text: '🔄 FLEX', color: '#cd7f32', points: 15, title: `Pick flexible: Top 12 en ${flexMaps.join(' y ')}` });
+        
+        // Si sus puntos en un mapa concreto son más débiles que su valor como flex, indicamos los mapas flex
+        if (bestMapScore < 15) {
+          bestMap = flexMaps.map(m => m.length > 10 ? m.substring(0, 4) + '.' : m).join(' / ');
+        }
       }
 
       if (score > 0) {
+        // Limpiar duplicados y quedarse con la etiqueta de mayor puntuación (ej: si es Top en 2 mapas, se queda el Oro si uno está libre)
         const uniqueTexts = Array.from(new Set(reasons.map(r => r.text)));
-        const uniqueReasons = uniqueTexts.map(text => reasons.find(r => r.text === text));
+        const uniqueReasons = uniqueTexts.map(text => {
+           const matching = reasons.filter(r => r.text === text);
+           return matching.reduce((prev, current) => (prev.points > current.points) ? prev : current);
+        });
+        
+        // Ordena estrictamente de mayor puntuación a menor (Oro -> Azulito -> Bronce)
         uniqueReasons.sort((a, b) => b.points - a.points);
 
         suggestions.push({ civ, score, reasons: uniqueReasons, bestMap: bestMap || 'Global' });
