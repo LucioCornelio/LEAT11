@@ -276,8 +276,8 @@ async def analyze_draft(data: dict):
                 df_g = df_g[df_g['Partidas'] >= 50]
                 if not df_g.empty:
                     df_g['WR'] = df_g['Victorias'] / df_g['Partidas']
-                    top_7 = df_g.sort_values(['WR', 'Partidas'], ascending=[False, False]).head(7)
-                    top_wr[m_disp] = [f"{str(r['Mi_Civ']).title()[:4]} ({(r['WR']*100):.1f}% | {fmt_k(r['Partidas'])})".replace('.', ',') for _, r in top_7.iterrows()]
+                    all_wr = df_g.sort_values(['WR', 'Partidas'], ascending=[False, False])
+                    top_wr[m_disp] = [f"{str(r['Mi_Civ']).title()[:4]} ({(r['WR']*100):.1f}% | {fmt_k(r['Partidas'])})".replace('.', ',') for _, r in all_wr.iterrows()]
                 else:
                     top_wr[m_disp] = []
             else:
@@ -285,8 +285,8 @@ async def analyze_draft(data: dict):
 
             if not df_all.empty and 'CDPS_Num' in df_all.columns:
                 df_v = df_all[~df_all['Civ List Lower'].isin(excluded) & (df_all['CDPS_Num'] > 0)]
-                top_7_c = df_v.sort_values('CDPS_Num', ascending=False).head(7)
-                top_cdps[m_disp] = [f"{str(r['Civ List Lower']).title()[:4]} ({r['CDPS_Num']:.1f} | {fmt_k(r['Picks_Num'])})".replace('.', ',') for _, r in top_7_c.iterrows()]
+                all_cdps = df_v.sort_values('CDPS_Num', ascending=False)
+                top_cdps[m_disp] = [f"{str(r['Civ List Lower']).title()[:4]} ({r['CDPS_Num']:.1f} | {fmt_k(r['Picks_Num'])})".replace('.', ',') for _, r in all_cdps.iterrows()]
             else:
                 top_cdps[m_disp] = []
 
