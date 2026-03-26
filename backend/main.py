@@ -347,3 +347,88 @@ async def analyze_draft(data: dict):
         import traceback
         traceback.print_exc() 
         return {"error": str(e)}
+
+# --- ENDPOINT PARA CIV ANALYZER & H2H ---
+
+@app.post("/api/civ/analyze")
+async def analyze_civs(data: dict):
+    try:
+        civ_a = data.get("civ_a", "").lower().strip()
+        civ_b = data.get("civ_b", "").lower().strip()
+        
+        if not civ_a:
+            return {"error": "Civ A is required"}
+
+        map_pool = ["Skukuza", "Fortified Clearing", "Islands", "Coast to Mountain", "Kawasan", "Thames", "Stranded", "Sardis", "Arabia", "Megarandom"]
+        result = {"civ_a": civ_a.title(), "civ_b": civ_b.title() if civ_b else None, "maps": {}}
+
+        path_counters = "data/matriz_counters_draft.csv"
+        df_counters = pd.DataFrame()
+        if os.path.exists(path_counters):
+            df_counters = pd.read_csv(path_counters, sep=";")
+            df_counters.columns = [c.strip() for c in df_counters.columns]
+            df_counters['Mapa'] = df_counters['Mapa'].astype(str).str.lower().str.strip()
+            df_counters['Mi_Civ'] = df_counters['Mi_Civ'].astype(str).str.lower().str.strip()
+            df_counters['Civ_Rival'] = df_counters['Civ_Rival'].astype(str).str.lower().str.strip()
+            if 'Partidas' in df_counters.columns:
+                df_counters['Partidas'] = pd.to_numeric(df_counters['Partidas'], errors='coerce').fillna(0)
+            if 'Victorias' in df_counters.columns:
+                df_counters['Victorias'] = pd.to_numeric(df_counters['Victorias'], errors='coerce').fillna(0)
+
+        for map_name in map_pool:
+            map_data = {
+                "a": {"wr": 0, "rank_wr": "-", "cdps": 0, "rank_cdps": "-", "picks": 0},
+                "b": {"wr": 0, "rank_wr": "-", "cdps": 0, "rank_cdps": "-", "picks": 0} if civ_b else None,
+                "matchup": None
+            }
+            
+            file_path = f"data/{map_name}_All.csv"
+            if os.path.exists(file_path):
+                try:
+                    df = pd.read_csv(file_path, encoding="latin1", sep=";")
+                except:
+                    df = pd.read_csv(file_path, encoding="latin1", sep=",")
+                    
+                cols = ['Civ List', 'Picks', 'Win Rate', 'CDPS Score']
+                if all(col in df.columns for col in cols):
+                    df_clean = df[cols].dropna(subset=['Civ List']).copy()
+                    df_clean['Civ_Lower'] = df_clean['Civ List'].astype(str).str.lower().str.strip()
+                    
+                    df_clean['Picks'] = df_clean['Picks'].astype(str).str.split('.').str[0].replace('', '0').astype(int)
+                    df_clean['Win Rate'] = df_clean['Win Rate'].astype(str).str.replace('%', '').str.replace(',', '.').astype(float)
+                    df_clean['Win Rate'] = np.where(df_clean['Win Rate'] > 1, df_clean['Win Rate'] / 100, df_clean['Win Rate'])
+                    df_clean['CDPS Score'] = pd.to_numeric(df_clean['CDPS Score'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+
+                    df_wr = df_clean.sort_values(by=['Win Rate', 'Picks'], ascending=[False, False]).reset_index(drop=True)
+                    df_cdps = df_clean[df_clean['CDPS Score'] > 0].sort_values(by='CDPS Score', ascending=False).reset_index(drop=True)
+
+                    for target, key in [(civ_a, "a"), (civ_b, "b")]:
+                        if target:
+                            row_wr = df_wr[df_wr['Civ_Lower'].str.startswith(target[:4])]
+                            row_cdps = df_cdps[df_cdps['Civ_Lower'].str.startswith(target[:4])]
+                            
+                            if not row_wr.empty:
+                                map_data[key]["wr"] = row_wr.iloc[0]['Win Rate']
+                                map_data[key]["rank_wr"] = int(row_wr.index[0]) + 1
+                                map_data[key]["picks"] = int(row_wr.iloc[0]['Picks'])
+                                
+                            if not row_cdps.empty:
+                                map_data[key]["cdps"] = row_cdps.iloc[0]['CDPS Score']
+                                map_data[key]["rank_cdps"] = int(row_cdps.index[0]) + 1
+            
+            if civ_b and not df_counters.empty:
+                m_int = get_clean_map(map_name) 
+                row_matchup = df_counters[(df_counters['Mapa'] == m_int) & (df_counters['Mi_Civ'].str.startswith(civ_a[:4])) & (df_counters['Civ_Rival'].str.startswith(civ_b[:4]))]
+                if not row_matchup.empty:
+                    games = row_matchup['Partidas'].sum()
+                    wins = row_matchup['Victorias'].sum()
+                    if games > 0:
+                        map_data["matchup"] = {"games": int(games), "wr_a": wins / games}
+
+            result["maps"][map_name] = map_data
+
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e)}
