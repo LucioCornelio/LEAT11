@@ -130,13 +130,16 @@ function App() {
         const wIndex = wrList.findIndex(s => s.split(' ')[0].trim().toLowerCase() === civPrefix);
         
         if (wIndex >= 0) {
-           const match = wrList[wIndex].match(/\(([\d,.]+)% \| (\d+)\)/);
+           const match = wrList[wIndex].match(/\(([\d,.]+)% \| (.*?)\)/);
            if (match) {
               const wrVal = parseFloat(match[1].replace(',', '.'));
-              const prVal = parseInt(match[2], 10);
+              const prStr = match[2].toLowerCase();
+              
+              let prVal = prStr.includes('k') 
+                ? parseFloat(prStr.replace(',', '.').replace('k', '')) * 1000 
+                : parseInt(prStr, 10);
+
               if (prVal >= 30 && wrVal >= 50) isW = true;
-           } else {
-              if (wIndex < 12) isW = true;
            }
         }
 
