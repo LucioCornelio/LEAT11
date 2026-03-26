@@ -298,9 +298,9 @@ const generateLiquipediaUrl = (mapName, civName) => {
     <div style={{ backgroundColor: '#161920', color: '#e0e0e0', minHeight: '100vh', padding: '0', fontFamily: 'Segoe UI, sans-serif' }}>
       
       <div style={{ display: 'flex', borderBottom: '2px solid #2a2d36', backgroundColor: '#1e212b', padding: '0 2rem' }}>
+        <div onClick={() => setActiveTab('draftAssistant')} style={{ padding: '20px 30px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', color: activeTab === 'draftAssistant' ? '#ffd700' : '#888', borderBottom: activeTab === 'draftAssistant' ? '3px solid #ffd700' : '3px solid transparent', transition: 'all 0.2s ease-in-out' }}>PA3 Draft Assistant</div>
         <div onClick={() => setActiveTab('mapAnalysis')} style={{ padding: '20px 30px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', color: activeTab === 'mapAnalysis' ? '#ffd700' : '#888', borderBottom: activeTab === 'mapAnalysis' ? '3px solid #ffd700' : '3px solid transparent', transition: 'all 0.2s ease-in-out' }}>Map Draft Analysis</div>
         <div onClick={() => setActiveTab('globalMeta')} style={{ padding: '20px 30px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', color: activeTab === 'globalMeta' ? '#ffd700' : '#888', borderBottom: activeTab === 'globalMeta' ? '3px solid #ffd700' : '3px solid transparent', transition: 'all 0.2s ease-in-out' }}>Global Tournament Meta</div>
-        <div onClick={() => setActiveTab('draftAssistant')} style={{ padding: '20px 30px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px', color: activeTab === 'draftAssistant' ? '#ffd700' : '#888', borderBottom: activeTab === 'draftAssistant' ? '3px solid #ffd700' : '3px solid transparent', transition: 'all 0.2s ease-in-out' }}>PA3 Draft Assistant</div>
       </div>
 
       <div style={{ padding: '1.5rem 2rem' }}>
