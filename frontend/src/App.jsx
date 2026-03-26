@@ -186,8 +186,8 @@ function App() {
         if (!m) return;
         const mapIndex = draft.maps.indexOf(m);
         
-        // ¡CLAVE!: Si ya has asignado tu civilización a este mapa, ignoramos el mapa por completo.
-        if (draft.plan_p1[mapIndex]) return;
+        // ¡CLAVE!: Solo ignoramos el mapa si el pick asignado es REAL y sigue en tus P1_picks
+        if (draft.plan_p1[mapIndex] && draft.p1_picks.includes(draft.plan_p1[mapIndex])) return;
 
         let mapScore = 0;
         const plannedOpponent = draft.plan_p2[mapIndex];
@@ -247,7 +247,7 @@ function App() {
         }
       });
 
-      // CRITERIO 3: Flex Pick (Bronce) - Esto es global, no se ve afectado por el bloqueo de mapas
+      // CRITERIO 3: Flex Pick (Bronce)
       let flexCount = 0;
       draft.maps.forEach(m => {
         if(!m) return;
@@ -276,21 +276,22 @@ function App() {
 
     return suggestions.sort((a, b) => b.score - a.score).slice(0, 5);
   };
-const toggleCiv = (civ, type) => {
+  cconst toggleCiv = (civ, type) => {
     if ((type === 'p1' || type === 'p2') && draft.bans.length < 7) {
       if (!draft.p1_picks.includes(civ) && !draft.p2_picks.includes(civ) && !draft.bans.includes(civ)) {
         alert("⚠️ You must complete the 7 bans (5 global + 2 yours) before picking.");
         return;
       }
     }
-    
 
     setDraft(prev => {
       const newD = {
         ...prev,
         p1_picks: [...prev.p1_picks],
         p2_picks: [...prev.p2_picks],
-        bans: [...prev.bans]
+        bans: [...prev.bans],
+        plan_p1: [...prev.plan_p1],
+        plan_p2: [...prev.plan_p2]
       };
 
       const isBanned = newD.bans.includes(civ);
@@ -314,10 +315,16 @@ const toggleCiv = (civ, type) => {
         const oppPicks = type === 'p1' ? newD.p2_picks : newD.p1_picks;
 
         if (myPicks.includes(civ)) {
-          if (type === 'p1') newD.p1_picks = newD.p1_picks.filter(c => c !== civ);
-          if (type === 'p2') newD.p2_picks = newD.p2_picks.filter(c => c !== civ);
+          // AQUI ESTA LA MAGIA: Si devuelves el pick, lo borra también del Planner
+          if (type === 'p1') {
+             newD.p1_picks = newD.p1_picks.filter(c => c !== civ);
+             newD.plan_p1 = newD.plan_p1.map(c => c === civ ? "" : c);
+          }
+          if (type === 'p2') {
+             newD.p2_picks = newD.p2_picks.filter(c => c !== civ);
+             newD.plan_p2 = newD.plan_p2.map(c => c === civ ? "" : c);
+          }
         } else {
-          // --- LÍMITE DE 5 PICKS ---
           if (myPicks.length >= 5) return prev;
 
           if (oppPicks.includes(civ)) {
