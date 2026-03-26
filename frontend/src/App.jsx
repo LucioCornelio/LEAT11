@@ -276,7 +276,7 @@ function App() {
 
     return suggestions.sort((a, b) => b.score - a.score).slice(0, 5);
   };
-  cconst toggleCiv = (civ, type) => {
+  const toggleCiv = (civ, type) => {
     if ((type === 'p1' || type === 'p2') && draft.bans.length < 7) {
       if (!draft.p1_picks.includes(civ) && !draft.p2_picks.includes(civ) && !draft.bans.includes(civ)) {
         alert("⚠️ You must complete the 7 bans (5 global + 2 yours) before picking.");
