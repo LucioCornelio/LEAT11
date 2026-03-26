@@ -248,19 +248,19 @@ function App() {
       });
 
       // CRITERIO 3: Flex Pick (Bronce)
-      let flexCount = 0;
+      let flexMaps = [];
       draft.maps.forEach(m => {
         if(!m) return;
         const flexCdps = (draft.analysis.top_cdps?.[m] || []).slice(0, 12);
         const flexWr = (draft.analysis.top_wr?.[m] || []).slice(0, 12);
         if (flexCdps.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix)) || 
             flexWr.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix))) {
-          flexCount++;
+          flexMaps.push(m);
         }
       });
-      if (flexCount >= 2) {
+      if (flexMaps.length >= 2) {
         score += 20;
-        reasons.push({ text: '🔄 FLEX', color: '#cd7f32', points: 20, title: 'Pick flexible: Top 12 en 2 o más mapas del draft' });
+        reasons.push({ text: '🔄 FLEX', color: '#cd7f32', points: 20, title: `Pick flexible: Top 12 en ${flexMaps.join(', ')}` });
         if (!bestMap) bestMap = 'Global';
       }
 
