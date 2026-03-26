@@ -115,6 +115,8 @@ function App() {
 
       let t_tot = 0;
       let w_tot = 0;
+      let wrSum = 0;
+      let wrCount = 0;
       const stats = [];
       const civPrefix = civ.substring(0, 4).toLowerCase();
 
@@ -133,13 +135,17 @@ function App() {
            const match = wrList[wIndex].match(/\(([\d,.]+)% \| (.*?)\)/);
            if (match) {
               const wrVal = parseFloat(match[1].replace(',', '.'));
+              wrSum += wrVal;
+              wrCount++;
+
               const prStr = match[2].toLowerCase();
-              
               let prVal = prStr.includes('k') 
                 ? parseFloat(prStr.replace(',', '.').replace('k', '')) * 1000 
                 : parseInt(prStr, 10);
 
               if (prVal >= 30 && wrVal >= 50) isW = true;
+           } else {
+              if (wIndex < 12) isW = true;
            }
         }
 
@@ -153,11 +159,15 @@ function App() {
       });
 
       if (t_tot >= 2 || w_tot >= 2) {
-        flex.push({ civ, score: t_tot * 10 + w_tot, stats });
+        const avgWr = wrCount > 0 ? wrSum / wrCount : 0;
+        flex.push({ civ, score: t_tot * 10 + w_tot, avgWr, stats });
       }
     });
 
-    return flex.sort((a, b) => b.score - a.score).slice(0, 10);
+    return flex.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return b.avgWr - a.avgWr;
+    }).slice(0, 10);
   };
 const toggleCiv = (civ, type) => {
     if ((type === 'p1' || type === 'p2') && draft.bans.length < 7) {
