@@ -193,7 +193,7 @@ function App() {
         const plannedOpponent = draft.plan_p2[mapIndex];
         const unassignedOpponents = draft.p2_picks.filter(c => !draft.plan_p2.includes(c));
 
-        // CRITERIO 1A: Counter Directo (Dorado)
+        // CRITERIO 1A: Counter Directo (Dorado) - Bajado de 100 a 40 pts para no sobredimensionar la predicción
         if (plannedOpponent) {
           const oppLow = plannedOpponent.toLowerCase();
           const ladderCounters = draft.analysis.counters_ladder?.[m]?.[oppLow] || [];
@@ -201,9 +201,9 @@ function App() {
           const isCounter = ladderCounters.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix)) ||
                             prosCounters.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
           if (isCounter) {
-            score += 100;
-            mapScore += 100;
-            reasons.push({ text: `🎯 VS ${plannedOpponent.substring(0,4).toUpperCase()}`, color: '#ffd700', points: 100, title: `Counter letal contra ${plannedOpponent} (asignado a ${m})` });
+            score += 40;
+            mapScore += 40;
+            reasons.push({ text: `🎯 VS ${plannedOpponent.substring(0,4).toUpperCase()}`, color: '#ffd700', points: 40, title: `Counter letal contra ${plannedOpponent} (asignado a ${m})` });
           }
         }
 
@@ -265,7 +265,6 @@ function App() {
       }
 
       if (score > 0) {
-        // Limpiar duplicados y ordenar las etiquetas de mayor a menor puntuación
         const uniqueTexts = Array.from(new Set(reasons.map(r => r.text)));
         const uniqueReasons = uniqueTexts.map(text => reasons.find(r => r.text === text));
         uniqueReasons.sort((a, b) => b.points - a.points);
