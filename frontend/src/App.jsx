@@ -184,51 +184,50 @@ function App() {
       draft.maps.forEach(m => {
         if (!m) return;
         
-        // Criterio 1: Counter directo (Dorado - 50 pts)
+        // Criterio 1: Counter directo
         draft.p2_picks.forEach(p2_civ => {
           const counters = draft.analysis.counters_ladder?.[m]?.[p2_civ] || [];
           const isCounter = counters.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
           if (isCounter) {
             score += 50;
-            reasons.push({ text: `⚔️ COUNTER ${p2_civ.substring(0,4).toUpperCase()}`, color: '#ffd700' });
+            reasons.push({ text: `⚔️ VS ${p2_civ.substring(0,4).toUpperCase()}`, color: '#ffd700' });
             bestMap = m;
           }
         });
 
-        // Criterio 2: Top Tier en el mapa (Azulito - 30 pts)
-        const topCdps = draft.analysis.top_cdps?.[m] || [];
-        const topWr = draft.analysis.top_wr?.[m] || [];
+        // Criterio 2: Top 7 en el mapa
+        const topCdps = (draft.analysis.top_cdps?.[m] || []).slice(0, 7);
+        const topWr = (draft.analysis.top_wr?.[m] || []).slice(0, 7);
         const inCdps = topCdps.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
         const inWr = topWr.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
         
         if (inCdps && inWr) {
           score += 30;
-          reasons.push({ text: '⭐ TOP MAPA', color: '#66b2ff' });
+          reasons.push({ text: '⭐ TOP', color: '#66b2ff' });
           if (!bestMap) bestMap = m;
         } else if (inCdps || inWr) {
           score += 10;
         }
       });
 
-      // Criterio 3: Flex Pick (Bronce - 20 pts)
+      // Criterio 3: Flex Pick (Top 12 en 2+ mapas)
       let flexCount = 0;
       draft.maps.forEach(m => {
         if(!m) return;
-        const topCdps = draft.analysis.top_cdps?.[m] || [];
-        const topWr = draft.analysis.top_wr?.[m] || [];
-        if (topCdps.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix)) || 
-            topWr.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix))) {
+        const flexCdps = (draft.analysis.top_cdps?.[m] || []).slice(0, 12);
+        const flexWr = (draft.analysis.top_wr?.[m] || []).slice(0, 12);
+        if (flexCdps.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix)) || 
+            flexWr.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix))) {
           flexCount++;
         }
       });
       if (flexCount >= 2) {
         score += 20;
         reasons.push({ text: '🔄 FLEX', color: '#cd7f32' });
-        if (!bestMap) bestMap = 'Múltiples mapas';
+        if (!bestMap) bestMap = 'Global';
       }
 
       if (score > 0) {
-        // Limpiar duplicados y guardar
         const uniqueReasons = Array.from(new Set(reasons.map(r => r.text))).map(text => reasons.find(r => r.text === text));
         suggestions.push({ civ, score, reasons: uniqueReasons, bestMap: bestMap || 'Global' });
       }
@@ -609,21 +608,21 @@ const generateLiquipediaUrl = (mapName, civName) => {
             </div>
 
             {/* SUGERENCIAS DEL DRAFT */}
-            <div style={{ backgroundColor: '#1a1c23', padding: '12px', borderRadius: '6px', border: '1px solid #ffd700', marginTop: '10px', marginBottom: '10px' }}>
-              <h3 style={{ color: '#ffd700', fontSize: '12px', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid #444', paddingBottom: '4px' }}>🔥 SMART SUGGESTIONS (TOP 5)</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ backgroundColor: '#1a1c23', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ffd700', marginTop: '10px', marginBottom: '10px' }}>
+              <h3 style={{ color: '#ffd700', fontSize: '11px', margin: '0 0 4px 0', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid #444', paddingBottom: '2px' }}>🔥 SMART SUGGESTIONS (TOP 5)</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 {getSuggestions().length === 0 ? (
-                  <div style={{ color: '#888', fontSize: '11px', fontStyle: 'italic', textAlign: 'center', padding: '10px' }}>No hay suficientes datos o mapas seleccionados para sugerir.</div>
+                  <div style={{ color: '#888', fontSize: '10px', fontStyle: 'italic', textAlign: 'center', padding: '4px' }}>Faltan datos o mapas para sugerir.</div>
                 ) : (
                   getSuggestions().map((s, i) => (
-                    <div key={i} onClick={() => toggleCiv(s.civ, 'p1')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1e212b', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', borderLeft: `3px solid ${s.reasons[0]?.color || '#555'}`, transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2a2d36'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1e212b'}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                        <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '12px', width: '90px' }}>{s.civ}</span>
-                        <span style={{ color: '#aaa', fontSize: '11px', width: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>🗺️ {s.bestMap}</span>
+                    <div key={i} onClick={() => toggleCiv(s.civ, 'p1')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1e212b', padding: '2px 6px', borderRadius: '3px', cursor: 'pointer', borderLeft: `2px solid ${s.reasons[0]?.color || '#555'}`, transition: 'background 0.2s', height: '20px' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2a2d36'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1e212b'}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '11px', width: '80px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.civ}</span>
+                        <span style={{ color: '#aaa', fontSize: '10px', width: '100px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>🗺️ {s.bestMap}</span>
                       </div>
-                      <div style={{ display: 'flex', gap: '6px' }}>
+                      <div style={{ display: 'flex', gap: '4px' }}>
                         {s.reasons.map((r, idx) => (
-                          <span key={idx} style={{ backgroundColor: `${r.color}22`, color: r.color, border: `1px solid ${r.color}55`, padding: '2px 6px', borderRadius: '3px', fontSize: '9px', fontWeight: 'bold' }}>
+                          <span key={idx} style={{ backgroundColor: `${r.color}22`, color: r.color, border: `1px solid ${r.color}55`, padding: '0 4px', borderRadius: '2px', fontSize: '8px', fontWeight: 'bold', lineHeight: '14px' }}>
                             {r.text}
                           </span>
                         ))}
