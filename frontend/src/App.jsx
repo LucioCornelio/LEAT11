@@ -105,6 +105,70 @@ function App() {
   const resetDraft = () => {
     setDraft({ maps: ["", "", ""], p1_picks: [], p2_picks: [], bans: [], plan_p1: ["", "", ""], plan_p2: ["", "", ""], analysis: null });
   }
+  const getFlexPicks = () => {
+    if (!draft.analysis || draft.maps.filter(m => m).length < 2) return [];
+    const flex = [];
+    const excluded = [...draft.bans, ...draft.p1_picks, ...draft.p2_picks];
+
+    civs.forEach(civ => {
+      if (excluded.includes(civ)) return;
+
+      let t_tot = 0;
+      let w_tot = 0;
+      let wrSum = 0;
+      let wrCount = 0;
+      const stats = [];
+      const civPrefix = civ.substring(0, 4).toLowerCase();
+
+      draft.maps.forEach((m) => {
+        if (!m) { stats.push('-'); return; }
+        
+        const cdpsList = draft.analysis.top_cdps?.[m] || [];
+        const tIndex = cdpsList.findIndex(s => s.split(' ')[0].trim().toLowerCase() === civPrefix);
+        const isT = tIndex >= 0 && tIndex < 12;
+
+        let isW = false;
+        const wrList = draft.analysis.top_wr?.[m] || [];
+        const wIndex = wrList.findIndex(s => s.split(' ')[0].trim().toLowerCase() === civPrefix);
+        
+        if (wIndex >= 0) {
+           const match = wrList[wIndex].match(/\(([\d,.]+)% \| (.*?)\)/);
+           if (match) {
+              const wrVal = parseFloat(match[1].replace(',', '.'));
+              wrSum += wrVal;
+              wrCount++;
+
+              const prStr = match[2].toLowerCase();
+              let prVal = prStr.includes('k') 
+                ? parseFloat(prStr.replace(',', '.').replace('k', '')) * 1000 
+                : parseInt(prStr, 10);
+
+              if (prVal >= 30 && wrVal >= 50) isW = true;
+           } else {
+              if (wIndex < 12) isW = true;
+           }
+        }
+
+        if (isT) t_tot++;
+        if (isW) w_tot++;
+
+        if (isT && isW) stats.push('Both');
+        else if (isT) stats.push('CDPS');
+        else if (isW) stats.push('WR');
+        else stats.push('-');
+      });
+
+      if (t_tot >= 2 || w_tot >= 2) {
+        const avgWr = wrCount > 0 ? wrSum / wrCount : 0;
+        flex.push({ civ, score: t_tot * 10 + w_tot, avgWr, stats });
+      }
+    });
+
+    return flex.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return b.avgWr - a.avgWr;
+    }).slice(0, 10);
+  };
   const getSuggestions = () => {
     if (!draft.analysis || draft.maps.filter(m => m).length === 0) return [];
     const excluded = [...draft.bans, ...draft.p1_picks, ...draft.p2_picks];
