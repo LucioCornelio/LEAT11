@@ -105,69 +105,72 @@ function App() {
   const resetDraft = () => {
     setDraft({ maps: ["", "", ""], p1_picks: [], p2_picks: [], bans: [], plan_p1: ["", "", ""], plan_p2: ["", "", ""], analysis: null });
   }
-  const getFlexPicks = () => {
-    if (!draft.analysis || draft.maps.filter(m => m).length < 2) return [];
-    const flex = [];
+  const getSuggestions = () => {
+    if (!draft.analysis || draft.maps.filter(m => m).length === 0) return [];
     const excluded = [...draft.bans, ...draft.p1_picks, ...draft.p2_picks];
+    const suggestions = [];
 
     civs.forEach(civ => {
       if (excluded.includes(civ)) return;
-
-      let t_tot = 0;
-      let w_tot = 0;
-      let wrSum = 0;
-      let wrCount = 0;
-      const stats = [];
       const civPrefix = civ.substring(0, 4).toLowerCase();
+      let score = 0;
+      const reasons = [];
+      let bestMap = '';
 
-      draft.maps.forEach((m) => {
-        if (!m) { stats.push('-'); return; }
+      draft.maps.forEach(m => {
+        if (!m) return;
         
-        const cdpsList = draft.analysis.top_cdps?.[m] || [];
-        const tIndex = cdpsList.findIndex(s => s.split(' ')[0].trim().toLowerCase() === civPrefix);
-        const isT = tIndex >= 0 && tIndex < 12;
+        // Criterio 1: Counter directo (Dorado - 50 pts)
+        draft.p2_picks.forEach(p2_civ => {
+          const counters = draft.analysis.counters_ladder?.[m]?.[p2_civ] || [];
+          const isCounter = counters.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
+          if (isCounter) {
+            score += 50;
+            reasons.push({ text: `⚔️ COUNTER ${p2_civ.substring(0,4).toUpperCase()}`, color: '#ffd700' });
+            bestMap = m;
+          }
+        });
 
-        let isW = false;
-        const wrList = draft.analysis.top_wr?.[m] || [];
-        const wIndex = wrList.findIndex(s => s.split(' ')[0].trim().toLowerCase() === civPrefix);
+        // Criterio 2: Top Tier en el mapa (Azulito - 30 pts)
+        const topCdps = draft.analysis.top_cdps?.[m] || [];
+        const topWr = draft.analysis.top_wr?.[m] || [];
+        const inCdps = topCdps.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
+        const inWr = topWr.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
         
-        if (wIndex >= 0) {
-           const match = wrList[wIndex].match(/\(([\d,.]+)% \| (.*?)\)/);
-           if (match) {
-              const wrVal = parseFloat(match[1].replace(',', '.'));
-              wrSum += wrVal;
-              wrCount++;
-
-              const prStr = match[2].toLowerCase();
-              let prVal = prStr.includes('k') 
-                ? parseFloat(prStr.replace(',', '.').replace('k', '')) * 1000 
-                : parseInt(prStr, 10);
-
-              if (prVal >= 30 && wrVal >= 50) isW = true;
-           } else {
-              if (wIndex < 12) isW = true;
-           }
+        if (inCdps && inWr) {
+          score += 30;
+          reasons.push({ text: '⭐ TOP MAPA', color: '#66b2ff' });
+          if (!bestMap) bestMap = m;
+        } else if (inCdps || inWr) {
+          score += 10;
         }
-
-        if (isT) t_tot++;
-        if (isW) w_tot++;
-
-        if (isT && isW) stats.push('Both');
-        else if (isT) stats.push('CDPS');
-        else if (isW) stats.push('WR');
-        else stats.push('-');
       });
 
-      if (t_tot >= 2 || w_tot >= 2) {
-        const avgWr = wrCount > 0 ? wrSum / wrCount : 0;
-        flex.push({ civ, score: t_tot * 10 + w_tot, avgWr, stats });
+      // Criterio 3: Flex Pick (Bronce - 20 pts)
+      let flexCount = 0;
+      draft.maps.forEach(m => {
+        if(!m) return;
+        const topCdps = draft.analysis.top_cdps?.[m] || [];
+        const topWr = draft.analysis.top_wr?.[m] || [];
+        if (topCdps.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix)) || 
+            topWr.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix))) {
+          flexCount++;
+        }
+      });
+      if (flexCount >= 2) {
+        score += 20;
+        reasons.push({ text: '🔄 FLEX', color: '#cd7f32' });
+        if (!bestMap) bestMap = 'Múltiples mapas';
+      }
+
+      if (score > 0) {
+        // Limpiar duplicados y guardar
+        const uniqueReasons = Array.from(new Set(reasons.map(r => r.text))).map(text => reasons.find(r => r.text === text));
+        suggestions.push({ civ, score, reasons: uniqueReasons, bestMap: bestMap || 'Global' });
       }
     });
 
-    return flex.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return b.avgWr - a.avgWr;
-    }).slice(0, 10);
+    return suggestions.sort((a, b) => b.score - a.score).slice(0, 5);
   };
 const toggleCiv = (civ, type) => {
     if ((type === 'p1' || type === 'p2') && draft.bans.length < 7) {
@@ -538,6 +541,32 @@ const generateLiquipediaUrl = (mapName, civName) => {
                     {draft.p2_picks.filter(c => !draft.plan_p2.includes(c)).map(c => <span key={c}>{c}</span>)}
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* SUGERENCIAS DEL DRAFT */}
+            <div style={{ backgroundColor: '#1a1c23', padding: '12px', borderRadius: '6px', border: '1px solid #ffd700', marginTop: '10px', marginBottom: '10px' }}>
+              <h3 style={{ color: '#ffd700', fontSize: '12px', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid #444', paddingBottom: '4px' }}>🔥 SMART SUGGESTIONS (TOP 5)</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {getSuggestions().length === 0 ? (
+                  <div style={{ color: '#888', fontSize: '11px', fontStyle: 'italic', textAlign: 'center', padding: '10px' }}>No hay suficientes datos o mapas seleccionados para sugerir.</div>
+                ) : (
+                  getSuggestions().map((s, i) => (
+                    <div key={i} onClick={() => toggleCiv(s.civ, 'p1')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1e212b', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', borderLeft: `3px solid ${s.reasons[0]?.color || '#555'}`, transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2a2d36'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1e212b'}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '12px', width: '90px' }}>{s.civ}</span>
+                        <span style={{ color: '#aaa', fontSize: '11px', width: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>🗺️ {s.bestMap}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {s.reasons.map((r, idx) => (
+                          <span key={idx} style={{ backgroundColor: `${r.color}22`, color: r.color, border: `1px solid ${r.color}55`, padding: '2px 6px', borderRadius: '3px', fontSize: '9px', fontWeight: 'bold' }}>
+                            {r.text}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
