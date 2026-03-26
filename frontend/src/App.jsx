@@ -366,8 +366,7 @@ const generateLiquipediaUrl = (mapName, civName) => {
                 <h3 style={{ color: '#66b2ff', margin: '0 0 4px 0', fontSize: '11px', letterSpacing: '1px' }}>MY PICKS (P1)</h3>
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', minHeight: '36px' }}>
                   {draft.p1_picks.map((c, i) => (
-                    <div key={i} style={{ position: 'relative', width: '36px', height: '36px', border: '1.5px solid #66b2ff', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#1e212b' }}>
-                      <img src={`/civs/${c.toLowerCase()}.png`} alt={c} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display='none'; }} />
+                    <div key={i} onClick={() => toggleCiv(c, 'p1')} style={{ position: 'relative', width: '36px', height: '36px', border: '1.5px solid #66b2ff', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#1e212b', cursor: 'pointer' }}>                      <img src={`/civs/${c.toLowerCase()}.png`} alt={c} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display='none'; }} />
                       <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '14px', backgroundColor: 'rgba(0,0,0,0.85)', color: 'white', fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{c.substring(0,4)}</div>
                     </div>
                   ))}
@@ -378,7 +377,7 @@ const generateLiquipediaUrl = (mapName, civName) => {
                 <h3 style={{ color: '#888', margin: '0 0 4px 0', fontSize: '11px', letterSpacing: '1px' }}>GLOBAL BANS</h3>
                 <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', minHeight: '36px' }}>
                   {draft.bans.map((c, i) => (
-                    <div key={i} style={{ position: 'relative', width: '36px', height: '36px', border: '1px solid #555', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#1e212b' }}>
+                    <div key={i} onClick={() => toggleCiv(c, 'ban')} style={{ position: 'relative', width: '36px', height: '36px', border: '1px solid #555', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#1e212b', cursor: 'pointer' }}>
                       <img src={`/civs/${c.toLowerCase()}.png`} alt={c} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }} onError={(e) => { e.target.style.display='none'; }} />
                       <div style={{position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, display: 'flex', alignItems: 'center', justifyContent: 'center'}}><span style={{color: '#ff4444', fontSize: '24px', fontWeight: '300'}}>✗</span></div>
                     </div>
@@ -390,7 +389,7 @@ const generateLiquipediaUrl = (mapName, civName) => {
                 <h3 style={{ color: '#ff6666', margin: '0 0 4px 0', fontSize: '11px', letterSpacing: '1px' }}>OPPONENT PICKS (P2)</h3>
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', minHeight: '36px' }}>
                   {draft.p2_picks.map((c, i) => (
-                    <div key={i} style={{ position: 'relative', width: '36px', height: '36px', border: '1.5px solid #ff6666', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#1e212b' }}>
+                    <div key={i} onClick={() => toggleCiv(c, 'p2')} style={{ position: 'relative', width: '36px', height: '36px', border: '1.5px solid #ff6666', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#1e212b', cursor: 'pointer' }}>
                       <img src={`/civs/${c.toLowerCase()}.png`} alt={c} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display='none'; }} />
                       <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '14px', backgroundColor: 'rgba(0,0,0,0.85)', color: 'white', fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{c.substring(0,4)}</div>
                     </div>
