@@ -375,6 +375,15 @@ async def analyze_civs(data: dict):
             if 'Victorias' in df_counters.columns:
                 df_counters['Victorias'] = pd.to_numeric(df_counters['Victorias'], errors='coerce').fillna(0)
 
+        def parse_picks(x):
+            try:
+                x = str(x).lower().strip()
+                if 'k' in x:
+                    return int(float(x.replace('k', '').replace(',', '.')) * 1000)
+                return int(float(x.replace('.', '')))
+            except:
+                return 0
+
         for map_name in map_pool:
             map_data = {
                 "a": {"wr": 0, "rank_wr": "-", "cdps": 0, "rank_cdps": "-", "picks": 0},
@@ -382,36 +391,48 @@ async def analyze_civs(data: dict):
                 "matchup": None
             }
             
-            file_path = f"data/{map_name}_All.csv"
-            if os.path.exists(file_path):
+            file_path_wr = f"data/{map_name}.csv"
+            file_path_cdps = f"data/{map_name}_All.csv"
+            
+            if os.path.exists(file_path_wr):
                 try:
-                    df = pd.read_csv(file_path, encoding="latin1", sep=";")
+                    df_w = pd.read_csv(file_path_wr, encoding="latin1", sep=";")
                 except:
-                    df = pd.read_csv(file_path, encoding="latin1", sep=",")
+                    df_w = pd.read_csv(file_path_wr, encoding="latin1", sep=",")
+                
+                if 'Civ List' in df_w.columns and 'Win Rate' in df_w.columns and 'Picks' in df_w.columns:
+                    df_w = df_w.dropna(subset=['Civ List']).copy()
+                    df_w['Civ_Lower'] = df_w['Civ List'].astype(str).str.lower().str.strip()
+                    df_w['Picks'] = df_w['Picks'].apply(parse_picks)
+                    df_w['Win Rate'] = df_w['Win Rate'].astype(str).str.replace('%', '').str.replace(',', '.').astype(float)
+                    df_w['Win Rate'] = np.where(df_w['Win Rate'] > 1, df_w['Win Rate'] / 100, df_w['Win Rate'])
                     
-                cols = ['Civ List', 'Picks', 'Win Rate', 'CDPS Score']
-                if all(col in df.columns for col in cols):
-                    df_clean = df[cols].dropna(subset=['Civ List']).copy()
-                    df_clean['Civ_Lower'] = df_clean['Civ List'].astype(str).str.lower().str.strip()
+                    df_w = df_w.sort_values(by=['Win Rate', 'Picks'], ascending=[False, False]).reset_index(drop=True)
                     
-                    df_clean['Picks'] = df_clean['Picks'].astype(str).str.split('.').str[0].replace('', '0').astype(int)
-                    df_clean['Win Rate'] = df_clean['Win Rate'].astype(str).str.replace('%', '').str.replace(',', '.').astype(float)
-                    df_clean['Win Rate'] = np.where(df_clean['Win Rate'] > 1, df_clean['Win Rate'] / 100, df_clean['Win Rate'])
-                    df_clean['CDPS Score'] = pd.to_numeric(df_clean['CDPS Score'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-
-                    df_wr = df_clean.sort_values(by=['Win Rate', 'Picks'], ascending=[False, False]).reset_index(drop=True)
-                    df_cdps = df_clean[df_clean['CDPS Score'] > 0].sort_values(by='CDPS Score', ascending=False).reset_index(drop=True)
-
                     for target, key in [(civ_a, "a"), (civ_b, "b")]:
                         if target:
-                            row_wr = df_wr[df_wr['Civ_Lower'].str.startswith(target[:4])]
-                            row_cdps = df_cdps[df_cdps['Civ_Lower'].str.startswith(target[:4])]
-                            
+                            row_wr = df_w[df_w['Civ_Lower'].str.startswith(target[:4])]
                             if not row_wr.empty:
                                 map_data[key]["wr"] = row_wr.iloc[0]['Win Rate']
                                 map_data[key]["rank_wr"] = int(row_wr.index[0]) + 1
                                 map_data[key]["picks"] = int(row_wr.iloc[0]['Picks'])
-                                
+
+            if os.path.exists(file_path_cdps):
+                try:
+                    df_c = pd.read_csv(file_path_cdps, encoding="latin1", sep=";")
+                except:
+                    df_c = pd.read_csv(file_path_cdps, encoding="latin1", sep=",")
+                    
+                if 'Civ List' in df_c.columns and 'CDPS Score' in df_c.columns:
+                    df_c = df_c.dropna(subset=['Civ List']).copy()
+                    df_c['Civ_Lower'] = df_c['Civ List'].astype(str).str.lower().str.strip()
+                    df_c['CDPS Score'] = pd.to_numeric(df_c['CDPS Score'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                    
+                    df_c = df_c[df_c['CDPS Score'] > 0].sort_values(by='CDPS Score', ascending=False).reset_index(drop=True)
+                    
+                    for target, key in [(civ_a, "a"), (civ_b, "b")]:
+                        if target:
+                            row_cdps = df_c[df_c['Civ_Lower'].str.startswith(target[:4])]
                             if not row_cdps.empty:
                                 map_data[key]["cdps"] = row_cdps.iloc[0]['CDPS Score']
                                 map_data[key]["rank_cdps"] = int(row_cdps.index[0]) + 1
