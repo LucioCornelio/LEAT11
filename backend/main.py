@@ -3,6 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import numpy as np
 import os
+import itertools
+        top_wr = {}
+        top_cdps = {}
+        opp_probs = {}
+        matchups = {}
+        counters_ladder = {}
+        counters_pros = {}
+        all_civ_weights = {}
+
+        def fmt_k(val):
 
 app = FastAPI()
 
@@ -243,7 +253,6 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
                                     break
 
             m_probs = {}
-            total_weight = 0
             for p in p2:
                 matches = df[(df['Mapa'] == m_int) & (df['Mi_Civ'] == p)]['Partidas'].sum()
                 cdps_val = 0
@@ -258,7 +267,11 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
                 cdps_multiplier = 1 + ((cdps_val / 100.0) * confidence)
                 weight = (matches + 1) * cdps_multiplier
                 m_probs[p] = weight
-                total_weight += weight
+            
+            all_civ_weights[m_disp] = m_probs
+            opp_probs[m_disp] = {p: 0 for p in p2}
+
+            matchups[m_disp] = {}
             
             opp_probs[m_disp] = {}
             for p in p2:
@@ -345,6 +358,29 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
                         pro_counters = temp_pros + ["-"] * (3 - len(temp_pros))
                 
                 counters_pros[m_disp][p2_civ] = pro_counters
+        valid_maps = [m for m in data.get('maps', []) if m]
+        if p2 and valid_maps:
+            padded_p2 = p2 + [None] * max(0, len(valid_maps) - len(p2))
+            perms = list(set(itertools.permutations(padded_p2, len(valid_maps))))
+            perm_scores = []
+            
+            for perm in perms:
+                score = 1.0
+                for i, m in enumerate(valid_maps):
+                    c = perm[i]
+                    if c is not None:
+                        w = all_civ_weights[m].get(c, 0)
+                        score *= (w + 1)
+                perm_scores.append(score)
+            
+            total_score = sum(perm_scores)
+            if total_score > 0:
+                for i, perm in enumerate(perms):
+                    prob = perm_scores[i] / total_score
+                    for j, m in enumerate(valid_maps):
+                        c = perm[j]
+                        if c is not None:
+                            opp_probs[m][c] += prob
 
         return {"top_wr": top_wr, "top_cdps": top_cdps, "opp_probs": opp_probs, "matchups": matchups, "counters_ladder": counters_ladder, "counters_pros": counters_pros}
     except Exception as e:
