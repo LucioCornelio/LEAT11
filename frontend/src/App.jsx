@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 
 function App() {
+  const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://leat11-backend.onrender.com';
   const mapPool = ["Skukuza", "Fortified Clearing", "Islands", "Coast to Mountain", "Kawasan", "Thames", "Stranded", "Sardis", "Arabia", "Megarandom"].sort()
   
   // Massive civilization list
@@ -74,7 +75,7 @@ function App() {
 
   useEffect(() => {
     if (!auth) return;
-    fetch(`https://leat11-backend.onrender.com/api/map/${selectedMap}`, {
+    fetch(`${API_BASE}/api/map/${selectedMap}`, {
       headers: { 'x-api-key': pass }
     })
       .then(res => res.json())
@@ -87,7 +88,7 @@ function App() {
 
   useEffect(() => {
     if (!auth) return;
-    fetch('https://leat11-backend.onrender.com/api/global', {
+    fetch(`${API_BASE}/api/global`, {
       headers: { 'x-api-key': pass }
     })
       .then(res => res.json())
@@ -100,7 +101,7 @@ function App() {
 
   useEffect(() => {
     if (activeTab === 'draftAssistant' && auth) {
-      fetch('https://leat11-backend.onrender.com/api/draft/analyze', { 
+      fetch(`${API_BASE}/api/draft/analyze`, {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json', 'x-api-key': pass }, 
         body: JSON.stringify(draft) 
@@ -113,7 +114,7 @@ function App() {
 
   useEffect(() => {
     if (activeTab === 'civAnalyzer' && civA && auth) {
-      fetch('https://leat11-backend.onrender.com/api/civ/analyze', {
+      fetch(`${API_BASE}/api/civ/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': pass },
         body: JSON.stringify({ civ_a: civA, civ_b: civB })
