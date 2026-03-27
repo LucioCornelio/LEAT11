@@ -73,50 +73,56 @@ function App() {
   };
 
   useEffect(() => {
-    fetch(`https://leat11-backend.onrender.com/api/map/${selectedMap}`)
+    if (!auth) return;
+    fetch(`https://leat11-backend.onrender.com/api/map/${selectedMap}`, {
+      headers: { 'x-api-key': pass }
+    })
       .then(res => res.json())
       .then(data => {
         if (!data.error) { setMapData(data); setMapError(null); } 
         else { setMapError(data.error); setMapData(null); }
       })
       .catch(() => setMapError("Could not connect to engine."))
-  }, [selectedMap])
+  }, [selectedMap, auth])
 
   useEffect(() => {
-    fetch('https://leat11-backend.onrender.com/api/global')
+    if (!auth) return;
+    fetch('https://leat11-backend.onrender.com/api/global', {
+      headers: { 'x-api-key': pass }
+    })
       .then(res => res.json())
       .then(data => {
         if (!data.error) { setGlobalData(data); setGlobalError(null); } 
         else { setGlobalError(data.error); setGlobalData(null); }
       })
       .catch(() => setGlobalError("Could not connect to engine."))
-  }, [])
+  }, [auth])
 
   useEffect(() => {
-    if (activeTab === 'draftAssistant') {
+    if (activeTab === 'draftAssistant' && auth) {
       fetch('https://leat11-backend.onrender.com/api/draft/analyze', { 
         method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
+        headers: { 'Content-Type': 'application/json', 'x-api-key': pass }, 
         body: JSON.stringify(draft) 
       })
       .then(res => res.json())
       .then(data => setDraft(prev => ({ ...prev, analysis: data })))
       .catch(err => console.error("Draft error:", err));
     }
-  }, [draft.p1_picks, draft.p2_picks, draft.bans, draft.maps, activeTab])
+  }, [draft.p1_picks, draft.p2_picks, draft.bans, draft.maps, activeTab, auth])
 
   useEffect(() => {
-    if (activeTab === 'civAnalyzer' && civA) {
+    if (activeTab === 'civAnalyzer' && civA && auth) {
       fetch('https://leat11-backend.onrender.com/api/civ/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': pass },
         body: JSON.stringify({ civ_a: civA, civ_b: civB })
       })
       .then(res => res.json())
       .then(data => setCivAnalysis(data))
       .catch(err => console.error("Analyzer error:", err));
     }
-  }, [civA, civB, activeTab]);
+  }, [civA, civB, activeTab, auth]);
 
   const resetDraft = () => {
     setDraft({ maps: ["", "", ""], p1_picks: [], p2_picks: [], bans: [], plan_p1: ["", "", ""], plan_p2: ["", "", ""], analysis: null });

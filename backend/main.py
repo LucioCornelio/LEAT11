@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import numpy as np
@@ -13,6 +13,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def verify_auth(x_api_key: str = Header(None)):
+    if x_api_key != "Emputors":
+        raise HTTPException(status_code=401, detail="Acceso denegado")
 
 @app.get("/")
 def read_root():
@@ -45,8 +49,8 @@ def process_csv(file_path):
         print(f"Error processing {file_path}: {e}")
         return [], 0
 
-@app.get("/api/map/{map_name}")
-def get_map_data(map_name: str):
+@app.get("/api/map/{map_name}", dependencies=[Depends(verify_auth)])
+def get_map_data(map_name: str, x_api_key: str = Header(None)):
     try:
         dataset_all, matches_all = process_csv(f"data/{map_name}_All.csv")
         dataset_elite, matches_elite = process_csv(f"data/{map_name}_VOD.csv")
@@ -60,8 +64,8 @@ def get_map_data(map_name: str):
         return {"error": str(e)}
 
 # --- ENDPOINT DEL META GLOBAL ---
-@app.get("/api/global")
-def get_global_meta():
+@app.get("/api/global", dependencies=[Depends(verify_auth)])
+def get_global_meta(x_api_key: str = Header(None)):
     try:
         map_pool = ["Skukuza", "Fortified Clearing", "Islands", "Coast to Mountain", "Kawasan", "Thames", "Stranded", "Sardis", "Arabia", "Megarandom"]
         all_dfs = []
@@ -138,8 +142,8 @@ def get_clean_map(map_name):
             return v.lower()
     return map_name.replace(" ", "_").lower()
 
-@app.post("/api/draft/analyze")
-async def analyze_draft(data: dict):
+@app.post("/api/draft/analyze", dependencies=[Depends(verify_auth)])
+async def analyze_draft(data: dict, x_api_key: str = Header(None)):
     try:
         path = "data/matriz_counters_draft.csv"
         if not os.path.exists(path): 
@@ -350,8 +354,8 @@ async def analyze_draft(data: dict):
 
 # --- ENDPOINT PARA CIV ANALYZER & H2H ---
 
-@app.post("/api/civ/analyze")
-async def analyze_civs(data: dict):
+@app.post("/api/civ/analyze", dependencies=[Depends(verify_auth)])
+async def analyze_civs(data: dict, x_api_key: str = Header(None)):
     try:
         civ_a = data.get("civ_a", "").lower().strip()
         civ_b = data.get("civ_b", "").lower().strip()
