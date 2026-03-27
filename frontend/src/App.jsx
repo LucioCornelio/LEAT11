@@ -4,7 +4,6 @@ function App() {
   const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://leat11-backend.onrender.com';
   const mapPool = ["Skukuza", "Fortified Clearing", "Islands", "Coast to Mountain", "Kawasan", "Thames", "Stranded", "Sardis", "Arabia", "Megarandom"].sort()
   
-  // Massive civilization list
   const civs = ["Armenians", "Aztecs", "Bengalis", "Berbers", "Bohemians", "Britons", "Bulgarians", "Burgundians", "Burmese", "Byzantines", "Celts", "Chinese", "Cumans", "Dravidians", "Ethiopians", "Franks", "Georgians", "Goths", "Gurjaras", "Hindustanis", "Huns", "Incas", "Italians", "Japanese", "Jurchens", "Khitans", "Khmer", "Koreans", "Lithuanians", "Magyars", "Malay", "Malians", "Mapuche", "Mayans", "Mongols", "Muisca", "Persians", "Poles", "Portuguese", "Romans", "Saracens", "Shu", "Sicilians", "Slavs", "Spanish", "Tatars", "Teutons", "Tupi", "Turks", "Vietnamese", "Vikings", "Wei", "Wu"].sort()
 
   const [selectedMap, setSelectedMap] = useState(mapPool[0])
@@ -29,11 +28,8 @@ function App() {
     
     const civ = civStr.split(' ')[0].trim();
     const mapIndex = draft.maps.indexOf(mapName);
-    
-    // Strict condition: exclusively check the civ the opponent has assigned to THIS map
     const oppSelected = draft.plan_p2[mapIndex];
     
-    // If no opponent is manually assigned to this map, don't color counters
     if (!oppSelected) {
       return { color: '#e0e0e0', fontWeight: 'normal', textDecoration: 'none' };
     }
@@ -60,13 +56,13 @@ function App() {
     let fontWeight = 'normal';
 
     if (countTop === 2 && countCounters === 2) {
-      color = '#ffd700'; // Gold
+      color = '#ffd700'; 
       fontWeight = 'bold';
     } else if ((countTop === 2 && countCounters === 1) || (countTop === 1 && countCounters === 2)) {
-      color = '#9abfe6'; // Silver (Metallic Blue)
+      color = '#9abfe6'; 
       fontWeight = 'bold';
     } else if (countTop === 1 && countCounters === 1) {
-      color = '#e69950'; // Bronze
+      color = '#e69950'; 
       fontWeight = 'bold';
     }
 
@@ -128,6 +124,7 @@ function App() {
   const resetDraft = () => {
     setDraft({ maps: ["", "", ""], p1_picks: [], p2_picks: [], bans: [], plan_p1: ["", "", ""], plan_p2: ["", "", ""], analysis: null });
   }
+  
   const getFlexPicks = () => {
     if (!draft.analysis || draft.maps.filter(m => m).length < 2) return [];
     const flex = [];
@@ -192,6 +189,7 @@ function App() {
       return b.avgWr - a.avgWr;
     }).slice(0, 10);
   };
+
   const getSuggestions = () => {
     if (!draft.analysis || draft.maps.filter(m => m).length === 0) return [];
     const excluded = [...draft.bans, ...draft.p1_picks, ...draft.p2_picks];
@@ -208,15 +206,12 @@ function App() {
       draft.maps.forEach(m => {
         if (!m) return;
         const mapIndex = draft.maps.indexOf(m);
-        
-        // Map is not ignored, but check if covered to apply penalties (bench picks)
         const isCovered = draft.plan_p1[mapIndex] && draft.p1_picks.includes(draft.plan_p1[mapIndex]);
         let mapScore = 0;
 
         const plannedOpponent = draft.plan_p2[mapIndex];
         const unassignedOpponents = draft.p2_picks.filter(c => !draft.plan_p2.includes(c));
 
-        // CRITERION 1A: Direct Counter (Opponent assigned to map)
         if (plannedOpponent) {
           const oppLow = plannedOpponent.toLowerCase();
           const ladderCounters = draft.analysis.counters_ladder?.[m]?.[oppLow] || [];
@@ -225,14 +220,13 @@ function App() {
                             prosCounters.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
           if (isCounter) {
             const pts = isCovered ? 25 : 40;
-            const col = isCovered ? '#66b2ff' : '#ffd700'; // Blue/Silver if covered (backup), Gold if free
+            const col = isCovered ? '#66b2ff' : '#ffd700'; 
             score += pts;
             mapScore += pts;
             reasons.push({ text: `🎯 VS ${plannedOpponent.substring(0,4).toUpperCase()}`, color: col, points: pts, title: `Lethal counter against ${plannedOpponent} on ${m} ${isCovered ? '(Backup option)' : ''}` });
           }
         }
 
-        // CRITERION 1B: Potential Counter (Unassigned opponent)
         unassignedOpponents.forEach(p2_civ => {
           const oppLow = p2_civ.toLowerCase();
           const ladderCounters = draft.analysis.counters_ladder?.[m]?.[oppLow] || [];
@@ -247,7 +241,6 @@ function App() {
           }
         });
 
-        // CRITERION 2: Top 7 Breakdown
         const topCdps = (draft.analysis.top_cdps?.[m] || []).slice(0, 7);
         const topWr = (draft.analysis.top_wr?.[m] || []).slice(0, 7);
         const inCdps = topCdps.some(c => typeof c === 'string' && c.toLowerCase().startsWith(civPrefix));
@@ -279,7 +272,6 @@ function App() {
         }
       });
 
-      // CRITERION 3: Flex Pick (Bronze, 15 pts)
       let flexMaps = [];
       draft.maps.forEach(m => {
         if(!m) return;
@@ -294,30 +286,25 @@ function App() {
       if (flexMaps.length >= 2) {
         score += 15;
         reasons.push({ text: '🔄 FLEX', color: '#cd7f32', points: 15, title: `Flexible pick: Top 12 on ${flexMaps.join(' and ')}` });
-        
-        // If map points are weaker than flex value, show flex maps
         if (bestMapScore < 15) {
           bestMap = flexMaps.map(m => m.length > 10 ? m.substring(0, 4) + '.' : m).join(' / ');
         }
       }
 
       if (score > 0) {
-        // Remove duplicates and keep highest scoring tag
         const uniqueTexts = Array.from(new Set(reasons.map(r => r.text)));
         const uniqueReasons = uniqueTexts.map(text => {
            const matching = reasons.filter(r => r.text === text);
            return matching.reduce((prev, current) => (prev.points > current.points) ? prev : current);
         });
-        
-        // Sort strictly by highest score descending
         uniqueReasons.sort((a, b) => b.points - a.points);
-
         suggestions.push({ civ, score, reasons: uniqueReasons, bestMap: bestMap || 'Global' });
       }
     });
 
     return suggestions.sort((a, b) => b.score - a.score).slice(0, 5);
   };
+
   const toggleCiv = (civ, type) => {
     if ((type === 'p1' || type === 'p2') && draft.bans.length < 7) {
       if (!draft.p1_picks.includes(civ) && !draft.p2_picks.includes(civ) && !draft.bans.includes(civ)) {
@@ -357,7 +344,6 @@ function App() {
         const oppPicks = type === 'p1' ? newD.p2_picks : newD.p1_picks;
 
         if (myPicks.includes(civ)) {
-          // MAGIC HERE: If you return the pick, it also removes it from the Planner
           if (type === 'p1') {
              newD.p1_picks = newD.p1_picks.filter(c => c !== civ);
              newD.plan_p1 = newD.plan_p1.map(c => c === civ ? "" : c);
@@ -368,7 +354,6 @@ function App() {
           }
         } else {
           if (myPicks.length >= 5) return prev;
-
           if (oppPicks.includes(civ)) {
             if (myPicks.length !== 0 || oppPicks[0] !== civ) {
               return prev; 
@@ -382,7 +367,7 @@ function App() {
     });
   }
 
-const generateLiquipediaUrl = (mapName, civName) => {
+  const generateLiquipediaUrl = (mapName, civName) => {
     const map = encodeURIComponent(mapName); const civ = encodeURIComponent(civName);
     return `https://liquipedia.net/ageofempires/Special:RunQuery/Game_history?title=Special%3ARunQuery%2FGame_history&pfRunQueryFormName=Game+history&Game_query=opponent1%3D%26opponent2%3D%26faction%3D${civ}%26faction1%3D%26faction2%3D%26game%3D%26mode%3D1v1%26map%3D${map}%26maps%3D%26tournament%3D%26sdate%255Bday%255D%3D%26sdate%255Bmonth%255D%3D%26sdate%255Byear%255D%3D%26edate%255Bday%255D%3D%26edate%255Bmonth%255D%3D%26edate%255Byear%255D%3D%26limit%3D500%26offset%3D%26vod%255Bis_checkbox%255D%3Dtrue%26vod%255Bvalue%255D%3D%26spoilerfree%255Bis_checkbox%255D%3Dtrue%26sort%255Bis_checkbox%255D%3Dtrue&wpRunQuery=&pf_free_text=&Game+query%5Bopponent1%5D=&Game+query%5Bopponent2%5D=&Game+query%5Bfaction%5D=${civ}&Game+query%5Bfaction1%5D=&Game+query%5Bfaction2%5D=&Game+query%5Bgame%5D=&Game+query%5Bmode%5D=1v1&Game+query%5Bmap%5D=${map}&Game+query%5Bmaps%5D=&Game+query%5Btournament%5D=&Game+query%5Bsdate%5D%5Bday%5D=&Game+query%5Bsdate%5D%5Bmonth%5D=&Game+query%5Bsdate%5D%5Byear%5D=&Game+query%5Bedate%5D%5Bday%5D=&Game+query%5Bedate%5D%5Bmonth%5D=&Game+query%5Bedate%5D%5Byear%5D=&Game+query%5Blimit%5D=500&Game+query%5Boffset%5D=&Game+query%5Bvod%5D%5Bis_checkbox%5D=true&Game+query%5Bvod%5D%5Bvalue%5D=&Game+query%5Bspoilerfree%5D%5Bis_checkbox%5D=true&Game+query%5Bsort%5D%5Bis_checkbox%5D=true&wpRunQuery=&pf_free_text=`;
   };

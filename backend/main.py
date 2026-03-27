@@ -18,38 +18,48 @@ app.add_middleware(
 
 def verify_auth(x_api_key: str = Header(None)):
     if x_api_key != "Emputors":
-        raise HTTPException(status_code=401, detail="Acceso denegado")
+        raise HTTPException(status_code=401, detail="Access denied")
 
 @app.get("/")
 def read_root():
     return {"message": "LEAT11 Engine is running!"}
 
-def process_csv(file_path):
+# --- SISTEMA DE CACHÉ PARA ACELERAR EL BACKEND ---
+csv_cache = {}
+
+def get_cached_df(file_path, sep=";"):
+    if file_path in csv_cache:
+        return csv_cache[file_path].copy()
+    
     if not os.path.exists(file_path):
-        return [], 0
+        return pd.DataFrame()
+    
     try:
-        try:
-            df = pd.read_csv(file_path, encoding="latin1", sep=";")
-        except:
-            df = pd.read_csv(file_path, encoding="latin1", sep=",")
+        df = pd.read_csv(file_path, encoding="latin1", sep=sep)
+    except:
+        df = pd.read_csv(file_path, encoding="latin1", sep=",")
+    
+    csv_cache[file_path] = df
+    return df.copy()
 
-        columns_to_keep = ['Civ List', 'Picks', 'Wins', 'Win Rate', 'CDPS Score']
-        if not all(col in df.columns for col in columns_to_keep):
-            return [], 0
-
-        df_clean = df[columns_to_keep].dropna(subset=['Civ List']).copy()
-        df_clean['Picks'] = df_clean['Picks'].astype(str).str.split('.').str[0].replace('', '0').astype(int)
-        df_clean['Wins'] = df_clean['Wins'].astype(str).str.split('.').str[0].replace('', '0').astype(int)
-        df_clean['Win Rate'] = df_clean['Win Rate'].astype(str).str.replace('%', '').str.replace(',', '.').astype(float)
-        df_clean['Win Rate'] = np.where(df_clean['Win Rate'] > 1, df_clean['Win Rate'] / 100, df_clean['Win Rate'])
-        df_clean['CDPS Score'] = df_clean['CDPS Score'].astype(str).str.replace(',', '.').astype(float)
-        
-        total_matches = int(df_clean['Picks'].sum() / 2)
-        df_sorted = df_clean.sort_values(by='CDPS Score', ascending=False).head(10)
-        return df_sorted.to_dict(orient='records'), total_matches
-    except Exception as e:
-        print(f"Error processing {file_path}: {e}")
+def process_csv(file_path):
+    df = get_cached_df(file_path)
+    if df.empty: return [], 0
+    
+    columns_to_keep = ['Civ List', 'Picks', 'Wins', 'Win Rate', 'CDPS Score']
+    if not all(col in df.columns for col in columns_to_keep):
         return [], 0
+
+    df_clean = df[columns_to_keep].dropna(subset=['Civ List']).copy()
+    df_clean['Picks'] = df_clean['Picks'].astype(str).str.split('.').str[0].replace('', '0').astype(int)
+    df_clean['Wins'] = df_clean['Wins'].astype(str).str.split('.').str[0].replace('', '0').astype(int)
+    df_clean['Win Rate'] = df_clean['Win Rate'].astype(str).str.replace('%', '').str.replace(',', '.').astype(float)
+    df_clean['Win Rate'] = np.where(df_clean['Win Rate'] > 1, df_clean['Win Rate'] / 100, df_clean['Win Rate'])
+    df_clean['CDPS Score'] = df_clean['CDPS Score'].astype(str).str.replace(',', '.').astype(float)
+    
+    total_matches = int(df_clean['Picks'].sum() / 2)
+    df_sorted = df_clean.sort_values(by='CDPS Score', ascending=False).head(10)
+    return df_sorted.to_dict(orient='records'), total_matches
 
 @app.get("/api/map/{map_name}", dependencies=[Depends(verify_auth)])
 def get_map_data(map_name: str, x_api_key: str = Header(None)):
@@ -65,7 +75,6 @@ def get_map_data(map_name: str, x_api_key: str = Header(None)):
     except Exception as e:
         return {"error": str(e)}
 
-# --- ENDPOINT DEL META GLOBAL ---
 @app.get("/api/global", dependencies=[Depends(verify_auth)])
 def get_global_meta(x_api_key: str = Header(None)):
     try:
@@ -74,12 +83,8 @@ def get_global_meta(x_api_key: str = Header(None)):
         
         for map_name in map_pool:
             file_path = f"data/{map_name}_All.csv"
-            if os.path.exists(file_path):
-                try:
-                    df = pd.read_csv(file_path, encoding="latin1", sep=";")
-                except:
-                    df = pd.read_csv(file_path, encoding="latin1", sep=",")
-                
+            df = get_cached_df(file_path)
+            if not df.empty:
                 cols = ['Civ List', 'Picks', 'Wins', 'Win Rate', 'CDPS Score']
                 if all(col in df.columns for col in cols):
                     df_clean = df[cols].dropna(subset=['Civ List']).copy()
@@ -90,7 +95,6 @@ def get_global_meta(x_api_key: str = Header(None)):
             return {"error": "No data files found to aggregate."}
             
         df_all = pd.concat(all_dfs, ignore_index=True)
-        
         df_all['Picks'] = df_all['Picks'].astype(str).str.split('.').str[0].replace('', '0').astype(int)
         df_all['Wins'] = df_all['Wins'].astype(str).str.split('.').str[0].replace('', '0').astype(int)
         df_all['Win Rate'] = df_all['Win Rate'].astype(str).str.replace('%', '').str.replace(',', '.').astype(float)
@@ -123,11 +127,8 @@ def get_global_meta(x_api_key: str = Header(None)):
             "global_traps": traps.to_dict(orient='records'),
             "most_versatile": versatile.to_dict(orient='records')
         }
-        
     except Exception as e:
         return {"error": str(e)}
-
-# --- ENDPOINT PARA EL DRAFT ASSISTANT ---
 
 MAP_TRANSLATION = {
     "Skukuza": "Socotra",
@@ -138,7 +139,6 @@ MAP_TRANSLATION = {
 }
 
 def get_clean_map(map_name):
-    # Traduce los mapas al formato interno
     for k, v in MAP_TRANSLATION.items():
         if map_name.lower().strip() == k.lower():
             return v.lower()
@@ -147,18 +147,16 @@ def get_clean_map(map_name):
 @app.post("/api/draft/analyze", dependencies=[Depends(verify_auth)])
 async def analyze_draft(data: dict, x_api_key: str = Header(None)):
     try:
-        path = "data/matriz_counters_draft.csv"
-        if not os.path.exists(path): 
-            return {"error": "Falta matriz_counters_draft.csv en la carpeta data/"}
+        df = get_cached_df("data/matriz_counters_draft.csv")
+        if df.empty: 
+            return {"error": "Missing matriz_counters_draft.csv"}
         
-        df = pd.read_csv(path, sep=";")
         df.columns = [c.strip() for c in df.columns]
-        
         df['Mapa'] = df['Mapa'].astype(str).str.lower().str.strip()
         df['Mi_Civ'] = df['Mi_Civ'].astype(str).str.lower().str.strip()
         df['Civ_Rival'] = df['Civ_Rival'].astype(str).str.lower().str.strip()
-        
         df['Win_Rate'] = pd.to_numeric(df['Win_Rate'].astype(str).str.replace('%', '').str.replace(',', '.'), errors='coerce').fillna(0)
+        
         if 'Partidas' in df.columns:
             df['Partidas'] = pd.to_numeric(df['Partidas'], errors='coerce').fillna(0)
         if 'Victorias' in df.columns:
@@ -182,20 +180,6 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
                 return f"{val/1000:.1f}k".replace(".0k", "k").replace('.', ',')
             return str(int(val))
 
-        def get_clean_map(map_name):
-            translation = {
-                "skukuza": "socotra",
-                "fortified clearing": "fortified_clearing",
-                "thames": "valley",
-                "sardis": "arena",
-                "coast to mountain": "african_clearing"
-            }
-            m_low = map_name.lower().strip()
-            for k, v in translation.items():
-                if m_low == k:
-                    return v
-            return map_name.replace(" ", "_").lower()
-
         for m_disp in data.get('maps', []):
             if not m_disp: continue
             m_int = get_clean_map(m_disp)
@@ -203,51 +187,47 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
             counters_ladder[m_disp] = {}
             counters_pros[m_disp] = {}
             
-            path_all = f"data/{m_disp}_All.csv"
-            df_all = pd.DataFrame()
+            df_all = get_cached_df(f"data/{m_disp}_All.csv")
             pro_matchups_data = []
             
-            if os.path.exists(path_all):
-                try:
-                    df_all = pd.read_csv(path_all, encoding="latin1", sep=";")
-                except:
-                    df_all = pd.read_csv(path_all, encoding="latin1", sep=",")
+            if not df_all.empty:
+                df_all.columns = [str(c).strip() for c in df_all.columns]
+                c_civ = 'Civ List' if 'Civ List' in df_all.columns else df_all.columns[0]
+                df_all['Civ List Lower'] = df_all[c_civ].astype(str).str.lower().str.strip()
                 
-                if not df_all.empty:
-                    df_all.columns = [str(c).strip() for c in df_all.columns]
+                if 'CDPS Score' in df_all.columns:
+                    df_all['CDPS_Num'] = pd.to_numeric(df_all['CDPS Score'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+                else:
+                    df_all['CDPS_Num'] = 0
                     
-                    c_civ = 'Civ List' if 'Civ List' in df_all.columns else df_all.columns[0]
-                    df_all['Civ List Lower'] = df_all[c_civ].astype(str).str.lower().str.strip()
-                    
-                    if 'CDPS Score' in df_all.columns:
-                        df_all['CDPS_Num'] = pd.to_numeric(df_all['CDPS Score'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-                    else:
-                        df_all['CDPS_Num'] = 0
+                if 'Picks' in df_all.columns:
+                    df_all['Picks_Num'] = pd.to_numeric(df_all['Picks'].astype(str).str.split('.').str[0], errors='coerce').fillna(0).astype(int)
+                else:
+                    df_all['Picks_Num'] = 0
+
+                if df_all.shape[1] >= 3:
+                    for i in range(df_all.shape[1] - 2):
+                        cA = df_all.iloc[:, i].astype(str).str.lower().str.strip()
+                        cB = df_all.iloc[:, i+1].astype(str).str.lower().str.strip()
+                        cW = df_all.iloc[:, i+2].astype(str).str.lower().str.strip()
                         
-                    if 'Picks' in df_all.columns:
-                        df_all['Picks_Num'] = pd.to_numeric(df_all['Picks'].astype(str).str.split('.').str[0], errors='coerce').fillna(0).astype(int)
-                    else:
-                        df_all['Picks_Num'] = 0
+                        valid_rows = (cW != '') & (cW != 'nan') & (cW != 'none')
+                        if valid_rows.sum() >= 2:
+                            match_pct = ((cW[valid_rows] == cA[valid_rows]) | (cW[valid_rows] == cB[valid_rows])).sum() / valid_rows.sum()
+                            if match_pct >= 0.8:
+                                df_pros = pd.DataFrame({'cA': cA, 'cB': cB, 'cW': cW})
+                                valid = df_pros[(df_pros['cA'] != 'nan') & (df_pros['cB'] != 'nan') & (df_pros['cW'] != 'nan')]
+                                for _, r in valid.iterrows():
+                                    pro_matchups_data.append({'civA': r['cA'], 'civB': r['cB'], 'winner': r['cW']})
+                                break
 
-                    if df_all.shape[1] >= 3:
-                        for i in range(df_all.shape[1] - 2):
-                            cA = df_all.iloc[:, i].astype(str).str.lower().str.strip()
-                            cB = df_all.iloc[:, i+1].astype(str).str.lower().str.strip()
-                            cW = df_all.iloc[:, i+2].astype(str).str.lower().str.strip()
-                            
-                            valid_rows = (cW != '') & (cW != 'nan') & (cW != 'none')
-                            if valid_rows.sum() >= 2:
-                                match_pct = ((cW[valid_rows] == cA[valid_rows]) | (cW[valid_rows] == cB[valid_rows])).sum() / valid_rows.sum()
-                                if match_pct >= 0.8:
-                                    df_pros = pd.DataFrame({'cA': cA, 'cB': cB, 'cW': cW})
-                                    valid = df_pros[(df_pros['cA'] != 'nan') & (df_pros['cB'] != 'nan') & (df_pros['cW'] != 'nan')]
-                                    for _, r in valid.iterrows():
-                                        pro_matchups_data.append({'civA': r['cA'], 'civB': r['cB'], 'winner': r['cW']})
-                                    break
-
+            # NORMALIZACIÓN RELATIVA DE MATCHES
+            total_map_partidas = df[df['Mapa'] == m_int]['Partidas'].sum()
             m_probs = {}
             for p in p2:
                 matches = df[(df['Mapa'] == m_int) & (df['Mi_Civ'] == p)]['Partidas'].sum()
+                pick_rate = (matches / total_map_partidas * 100) if total_map_partidas > 0 else 0
+                
                 cdps_val = 0
                 tourney_picks = 0
                 if not df_all.empty and 'Civ List Lower' in df_all.columns:
@@ -256,9 +236,9 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
                         cdps_val = max(0, cdps_row['CDPS_Num'].values[0])
                         tourney_picks = cdps_row['Picks_Num'].values[0]
                 
-                confidence = min(1.0, tourney_picks / 15.0)
+                confidence = min(1.0, tourney_picks / 10.0)
                 cdps_multiplier = 1 + ((cdps_val / 100.0) * confidence)
-                weight = (matches + 1) * cdps_multiplier
+                weight = (pick_rate + 0.1) * cdps_multiplier
                 m_probs[p] = weight
             
             all_civ_weights[m_disp] = m_probs
@@ -287,15 +267,15 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
             else:
                 top_wr[m_disp] = []
 
+            # MUESTRA MÍNIMA PARA CDPS
             if not df_all.empty and 'CDPS_Num' in df_all.columns:
-                df_v = df_all[~df_all['Civ List Lower'].isin(excluded) & (df_all['CDPS_Num'] > 0)]
+                df_v = df_all[~df_all['Civ List Lower'].isin(excluded) & (df_all['CDPS_Num'] > 0) & (df_all['Picks_Num'] >= 3)]
                 all_cdps = df_v.sort_values('CDPS_Num', ascending=False)
                 top_cdps[m_disp] = [f"{str(r['Civ List Lower']).title()[:4]} ({r['CDPS_Num']:.1f} | {fmt_k(r['Picks_Num'])})".replace('.', ',') for _, r in all_cdps.iterrows()]
             else:
                 top_cdps[m_disp] = []
 
             for p2_civ in p2:
-                # 1. COUNTERS LADDER
                 df_c = df[(df['Mapa'] == m_int) & (df['Civ_Rival'] == p2_civ)]
                 df_c = df_c[~df_c['Mi_Civ'].isin(excluded) & (df_c['Partidas'] >= 10)].copy()
                 if not df_c.empty:
@@ -312,7 +292,6 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
                 else:
                     counters_ladder[m_disp][p2_civ] = ["-", "-", "-"]
 
-                # 2. COUNTERS PROS
                 pro_counters = ["-", "-", "-"]
                 if pro_matchups_data:
                     stats = {}
@@ -322,10 +301,8 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
                             opponent = cB if cA == p2_civ else cA
                             if opponent in excluded or opponent == p2_civ:
                                 continue
-                            
                             if opponent not in stats:
                                 stats[opponent] = {'games': 0, 'wins': 0}
-                            
                             stats[opponent]['games'] += 1
                             if cW == opponent:
                                 stats[opponent]['wins'] += 1
@@ -358,7 +335,7 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
                     c = perm[i]
                     if c is not None:
                         w = all_civ_weights[m].get(c, 0)
-                        score *= (w + 1)
+                        score *= w
                 perm_scores.append(score)
             
             total_score = sum(perm_scores)
@@ -376,24 +353,18 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
         traceback.print_exc() 
         return {"error": str(e)}
 
-# --- ENDPOINT PARA CIV ANALYZER & H2H ---
-
 @app.post("/api/civ/analyze", dependencies=[Depends(verify_auth)])
 async def analyze_civs(data: dict, x_api_key: str = Header(None)):
     try:
         civ_a = data.get("civ_a", "").lower().strip()
         civ_b = data.get("civ_b", "").lower().strip()
-        
-        if not civ_a:
-            return {"error": "Civ A is required"}
+        if not civ_a: return {"error": "Civ A is required"}
 
         map_pool = ["Skukuza", "Fortified Clearing", "Islands", "Coast to Mountain", "Kawasan", "Thames", "Stranded", "Sardis", "Arabia", "Megarandom"]
         result = {"civ_a": civ_a.title(), "civ_b": civ_b.title() if civ_b else None, "maps": {}}
 
-        path_counters = "data/matriz_counters_draft.csv"
-        df_counters = pd.DataFrame()
-        if os.path.exists(path_counters):
-            df_counters = pd.read_csv(path_counters, sep=";")
+        df_counters = get_cached_df("data/matriz_counters_draft.csv")
+        if not df_counters.empty:
             df_counters.columns = [c.strip() for c in df_counters.columns]
             df_counters['Mapa'] = df_counters['Mapa'].astype(str).str.lower().str.strip()
             df_counters['Mi_Civ'] = df_counters['Mi_Civ'].astype(str).str.lower().str.strip()
@@ -421,9 +392,8 @@ async def analyze_civs(data: dict, x_api_key: str = Header(None)):
                 "matchup_cdps": None
             }
             
-            m_int = get_clean_map(map_name) if 'get_clean_map' in globals() else map_name.lower().replace(" ", "")
+            m_int = get_clean_map(map_name)
             
-            # 1. WR y RANK consolidados desde matriz_counters_draft.csv (La matriz de 51k partidas)
             if not df_counters.empty:
                 df_map_counters = df_counters[df_counters['Mapa'] == m_int]
                 if not df_map_counters.empty:
@@ -439,7 +409,6 @@ async def analyze_civs(data: dict, x_api_key: str = Header(None)):
                                 map_data[key]["wr"] = float(row_wr.iloc[0]['WR'])
                                 map_data[key]["picks_w"] = int(row_wr.iloc[0]['Partidas'])
 
-            # 2. CDPS desde VOD y columnas raw desde LADDER
             candidates = glob.glob(f"data/*{map_name}*.csv")
             df_ladder = pd.DataFrame()
             df_elite = pd.DataFrame()
@@ -447,23 +416,17 @@ async def analyze_civs(data: dict, x_api_key: str = Header(None)):
             min_p = float('inf')
             
             for file in candidates:
-                try:
-                    df_temp = pd.read_csv(file, encoding="latin1", sep=";")
-                    if len(df_temp.columns) < 3:
-                        df_temp = pd.read_csv(file, encoding="latin1", sep=",")
-                    if 'Civ List' in df_temp.columns and 'Picks' in df_temp.columns:
-                        df_temp['Picks_Num'] = df_temp['Picks'].apply(parse_picks)
-                        total_p = df_temp['Picks_Num'].sum()
-                        if total_p > max_p:
-                            max_p = total_p
-                            df_ladder = df_temp.copy()
-                        if total_p > 0 and total_p < min_p:
-                            min_p = total_p
-                            df_elite = df_temp.copy()
-                except:
-                    pass
+                df_temp = get_cached_df(file)
+                if not df_temp.empty and 'Civ List' in df_temp.columns and 'Picks' in df_temp.columns:
+                    df_temp['Picks_Num'] = df_temp['Picks'].apply(parse_picks)
+                    total_p = df_temp['Picks_Num'].sum()
+                    if total_p > max_p:
+                        max_p = total_p
+                        df_ladder = df_temp.copy()
+                    if total_p > 0 and total_p < min_p:
+                        min_p = total_p
+                        df_elite = df_temp.copy()
             
-            # Extraer CDPS desde df_elite (VOD)
             if not df_elite.empty and 'CDPS Score' in df_elite.columns:
                 df_c = df_elite.dropna(subset=['Civ List']).copy()
                 df_c['Civ_Lower'] = df_c['Civ List'].astype(str).str.lower().str.strip()
@@ -478,9 +441,7 @@ async def analyze_civs(data: dict, x_api_key: str = Header(None)):
                             map_data[key]["rank_cdps"] = int(row_cdps.index[0]) + 1
                             map_data[key]["picks_c"] = int(row_cdps.iloc[0]['Picks_Num'])
 
-            # 3. Matchups Head to Head
             if civ_b:
-                # H2H LADDER (Draft Matrix)
                 if not df_counters.empty:
                     row_matchup = df_counters[(df_counters['Mapa'] == m_int) & (df_counters['Mi_Civ'].str.startswith(civ_a[:4])) & (df_counters['Civ_Rival'].str.startswith(civ_b[:4]))]
                     if not row_matchup.empty:
@@ -489,7 +450,6 @@ async def analyze_civs(data: dict, x_api_key: str = Header(None)):
                         if games > 0:
                             map_data["matchup"] = {"games": int(games), "wr_a": float(wins / games)}
                 
-                # H2H CDPS (Las columnas crudas cA, cB, cW están en df_ladder)
                 if not df_ladder.empty:
                     games_cdps = 0
                     wins_a_cdps = 0
