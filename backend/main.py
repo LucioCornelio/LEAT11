@@ -24,7 +24,6 @@ def verify_auth(x_api_key: str = Header(None)):
 def read_root():
     return {"message": "LEAT11 Engine is running!"}
 
-# --- SISTEMA DE CACHÉ PARA ACELERAR EL BACKEND ---
 csv_cache = {}
 
 def get_cached_df(file_path, sep=";"):
@@ -221,7 +220,6 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
                                     pro_matchups_data.append({'civA': r['cA'], 'civB': r['cB'], 'winner': r['cW']})
                                 break
 
-            # NORMALIZACIÓN RELATIVA DE MATCHES
             total_map_partidas = df[df['Mapa'] == m_int]['Partidas'].sum()
             m_probs = {}
             for p in p2:
@@ -267,7 +265,6 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
             else:
                 top_wr[m_disp] = []
 
-            # MUESTRA MÍNIMA PARA CDPS
             if not df_all.empty and 'CDPS_Num' in df_all.columns:
                 df_v = df_all[~df_all['Civ List Lower'].isin(excluded) & (df_all['CDPS_Num'] > 0) & (df_all['Picks_Num'] >= 3)]
                 all_cdps = df_v.sort_values('CDPS_Num', ascending=False)
@@ -276,22 +273,18 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
                 top_cdps[m_disp] = []
 
             for p2_civ in p2:
+                # LADDER: Mejor disponible (mínimo 15 partidas)
                 df_c = df[(df['Mapa'] == m_int) & (df['Civ_Rival'] == p2_civ)]
-                df_c = df_c[~df_c['Mi_Civ'].isin(excluded) & (df_c['Partidas'] >= 10)].copy()
+                df_c = df_c[~df_c['Mi_Civ'].isin(excluded) & (df_c['Partidas'] >= 15)].copy()
                 if not df_c.empty:
                     df_c['WR'] = df_c['Victorias'] / df_c['Partidas']
-                    df_c = df_c[df_c['WR'] > 0.55] 
-                    
-                    if not df_c.empty:
-                        df_c['Score'] = df_c['WR'] * (df_c['Partidas'] ** 0.5)
-                        top_3_l = df_c.sort_values('Score', ascending=False).head(3)
-                        temp_ladder = [f"{str(r['Mi_Civ']).title()[:4]} ({(r['WR']*100):.1f}% | {fmt_k(r['Partidas'])})".replace('.', ',') for _, r in top_3_l.iterrows()]
-                        counters_ladder[m_disp][p2_civ] = temp_ladder + ["-"] * (3 - len(temp_ladder))
-                    else:
-                        counters_ladder[m_disp][p2_civ] = ["-", "-", "-"]
+                    top_3_l = df_c.sort_values(['WR', 'Partidas'], ascending=[False, False]).head(3)
+                    temp_ladder = [f"{str(r['Mi_Civ']).title()[:4]} ({(r['WR']*100):.1f}% | {fmt_k(r['Partidas'])})".replace('.', ',') for _, r in top_3_l.iterrows()]
+                    counters_ladder[m_disp][p2_civ] = temp_ladder + ["-"] * (3 - len(temp_ladder))
                 else:
                     counters_ladder[m_disp][p2_civ] = ["-", "-", "-"]
 
+                # PROS: Mejor disponible (mínimo 3 partidas), con veto si ladder es < 45%
                 pro_counters = ["-", "-", "-"]
                 if pro_matchups_data:
                     stats = {}
@@ -309,14 +302,22 @@ async def analyze_draft(data: dict, x_api_key: str = Header(None)):
                     
                     valid_stats = []
                     for opp, data_stat in stats.items():
-                        if data_stat['games'] >= 2: 
+                        if data_stat['games'] >= 3: 
                             wr = data_stat['wins'] / data_stat['games']
-                            if wr > 0.55:
-                                score = wr * (data_stat['games'] ** 0.5)
-                                valid_stats.append({'civ': opp, 'wr': wr, 'games': data_stat['games'], 'score': score})
+                            ladder_veto = False
+                            df_check = df[(df['Mapa'] == m_int) & (df['Mi_Civ'] == opp) & (df['Civ_Rival'] == p2_civ)]
+                            if not df_check.empty:
+                                l_games = df_check['Partidas'].sum()
+                                if l_games >= 10:
+                                    l_wr = df_check['Victorias'].sum() / l_games
+                                    if l_wr < 0.45:
+                                        ladder_veto = True
+                            
+                            if not ladder_veto:
+                                valid_stats.append({'civ': opp, 'wr': wr, 'games': data_stat['games']})
                     
                     if valid_stats:
-                        valid_stats.sort(key=lambda x: x['score'], reverse=True)
+                        valid_stats.sort(key=lambda x: (x['wr'], x['games']), reverse=True)
                         top_3 = valid_stats[:3]
                         temp_pros = [f"{str(r['civ']).title()[:4]} ({(r['wr']*100):.1f}% | {fmt_k(r['games'])})".replace('.', ',') for r in top_3]
                         pro_counters = temp_pros + ["-"] * (3 - len(temp_pros))
