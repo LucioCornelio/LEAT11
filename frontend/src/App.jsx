@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
+import { getMapData, getGlobalMeta, analyzeDraft, analyzeCivs } from './engine'
 
 function App() {
-  const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://leat11-backend.onrender.com';
   const mapPool = ["Skukuza", "Fortified Clearing", "Islands", "Coast to Mountain", "Kawasan", "Thames", "Stranded", "Sardis", "Arabia", "Megarandom"].sort()
-  
   const civs = ["Armenians", "Aztecs", "Bengalis", "Berbers", "Bohemians", "Britons", "Bulgarians", "Burgundians", "Burmese", "Byzantines", "Celts", "Chinese", "Cumans", "Dravidians", "Ethiopians", "Franks", "Georgians", "Goths", "Gurjaras", "Hindustanis", "Huns", "Incas", "Italians", "Japanese", "Jurchens", "Khitans", "Khmer", "Koreans", "Lithuanians", "Magyars", "Malay", "Malians", "Mapuche", "Mayans", "Mongols", "Muisca", "Persians", "Poles", "Portuguese", "Romans", "Saracens", "Shu", "Sicilians", "Slavs", "Spanish", "Tatars", "Teutons", "Tupi", "Turks", "Vietnamese", "Vikings", "Wei", "Wu"].sort()
 
+  const [db, setDb] = useState(null)
   const [selectedMap, setSelectedMap] = useState(mapPool[0])
   const [mapData, setMapData] = useState(null)
   const [mapError, setMapError] = useState(null)
@@ -90,55 +90,52 @@ function App() {
 
   useEffect(() => {
     if (!auth) return;
-    fetch(`${API_BASE}/api/map/${selectedMap}`, {
-      headers: { 'x-api-key': pass }
-    })
+    fetch('/db.json')
       .then(res => res.json())
       .then(data => {
-        if (!data.error) { setMapData(data); setMapError(null); } 
-        else { setMapError(data.error); setMapData(null); }
+        setDb(data);
+        try {
+          setGlobalData(getGlobalMeta(data));
+          setGlobalError(null);
+        } catch (e) {
+          setGlobalError(e.message);
+        }
       })
-      .catch(() => setMapError("Could not connect to engine."))
-  }, [selectedMap, auth])
+      .catch(() => setGlobalError("Could not load local database."));
+  }, [auth]);
 
   useEffect(() => {
-    if (!auth) return;
-    fetch(`${API_BASE}/api/global`, {
-      headers: { 'x-api-key': pass }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (!data.error) { setGlobalData(data); setGlobalError(null); } 
-        else { setGlobalError(data.error); setGlobalData(null); }
-      })
-      .catch(() => setGlobalError("Could not connect to engine."))
-  }, [auth])
-
-  useEffect(() => {
-    if (activeTab === 'draftAssistant' && auth) {
-      fetch(`${API_BASE}/api/draft/analyze`, {
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json', 'x-api-key': pass }, 
-        body: JSON.stringify(draft) 
-      })
-      .then(res => res.json())
-      .then(data => setDraft(prev => ({ ...prev, analysis: data })))
-      .catch(err => console.error("Draft error:", err));
+    if (!db || !selectedMap) return;
+    try {
+      const data = getMapData(db, selectedMap);
+      setMapData(data);
+      setMapError(null);
+    } catch (e) {
+      setMapError(e.message);
+      setMapData(null);
     }
-  }, [draft.p1_picks, draft.p2_picks, draft.bans, draft.maps, activeTab, auth])
+  }, [selectedMap, db]);
 
   useEffect(() => {
-    if (activeTab === 'civAnalyzer' && civA && auth) {
-      fetch(`${API_BASE}/api/civ/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': pass },
-        body: JSON.stringify({ civ_a: civA, civ_b: civB })
-      })
-      .then(res => res.json())
-      .then(data => setCivAnalysis(data))
-      .catch(err => console.error("Analyzer error:", err));
+    if (activeTab === 'draftAssistant' && db) {
+      try {
+        const analysis = analyzeDraft(db, draft);
+        setDraft(prev => ({ ...prev, analysis }));
+      } catch (e) {
+        console.error("Draft error:", e);
+      }
     }
-  }, [civA, civB, activeTab, auth]);
+  }, [draft.p1_picks, draft.p2_picks, draft.bans, draft.maps, activeTab, db]);
+
+  useEffect(() => {
+    if (activeTab === 'civAnalyzer' && civA && db) {
+      try {
+        setCivAnalysis(analyzeCivs(db, { civ_a: civA, civ_b: civB }));
+      } catch (e) {
+        console.error("Analyzer error:", e);
+      }
+    }
+  }, [civA, civB, activeTab, db]);
 
   const resetDraft = () => {
     setDraft({ maps: ["", "", ""], p1_picks: [], p2_picks: [], bans: [], plan_p1: ["", "", ""], plan_p2: ["", "", ""], p1_snipe: "", p2_snipe: "", analysis: null });
